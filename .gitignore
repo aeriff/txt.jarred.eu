@@ -1,4 +1,6 @@
 /.bundle/
 /vendor/bundle
 /tmp/
+/output/
 output.diff
+crash.log
