@@ -1,0 +1,11 @@
+base_url: "http://txt.jarred.eu"
+enable_output_diff: true
+prune:
+  auto_prune: true
+  exclude: [ '.git' ]
+data_sources:
+  - type: filesystem
+deploy:
+  default:
+    kind: git
+    branch: gh-pages
