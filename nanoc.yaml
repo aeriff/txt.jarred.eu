@@ -2,7 +2,7 @@ base_url: "http://txt.jarred.eu"
 enable_output_diff: true
 prune:
   auto_prune: true
-  exclude: [ '.git' ]
+  exclude: [ '.git', 'CNAME' ]
 data_sources:
   - type: filesystem
 deploy:
