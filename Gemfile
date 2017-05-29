@@ -5,4 +5,5 @@ group :nanoc do
 end
 
 gem "adsf"
+gem "kramdown"
 gem "nanoc"
