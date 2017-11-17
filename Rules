@@ -1,5 +1,10 @@
 #!/usr/bin/env ruby
 
+compile '/**/*.erb' do
+  filter :erb
+  layout '/default.*'
+end
+
 compile '/**/*.html' do
   layout '/default.*'
 end
