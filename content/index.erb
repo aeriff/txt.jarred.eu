@@ -2,11 +2,10 @@
 title: Home
 ---
 
-<div class="mw9 center f6">
-<h4 class="f4 lh-title">txt.jarred.eu</h4>
-
-<p class="measure copy lh-copy">Nobody asked for an explanation of <a href="/" class="link dim gold">this</a>.</p>
-<p class="measure copy lh-copy">This being this particular pocket of the hypertext-transfer protocol network. This worthless few grams of brackets both square and otherwise, banished to the outer suburbs of GeoCities once they need this prime internet real estate for another extension of the Information Super Highway.</p>
-<p class="measure copy lh-copy">So maybe that's what this is, then. Or at least for now. Maybe a record of words and/or photos judged worthy of recordable events, or practice paragraphs for novels that should be novelettes. Or ideas that are obvious, too obvious, the post-publish thought of which keeps them mostly private, away from re-read, re-analysed scrutiny.</p>
-<p class="measure copy lh-copy">Case in point.</p>
+<% sorted_articles.each do |post| %>
+<div>
+  <h1 class="ma0 pa0 f4 f3-m f2-l"><%= link_to(post[:title], post, {'class' => 'link black'}) %></h3></a>
+  <time class="f6 mb2 dib ttu tracked mid-gray"><small><%= post[:created_at] %></small></span>
 </div>
+<p class="mb5 measure copy lh-copy"><%= post[:excerpt] %></p>
+<% end %>

@@ -14,7 +14,7 @@ compile '/**/*.md' do
   layout '/default.*'
 end
 
-route '/**/*.{html,md}' do
+route '/**/*.{html,md,erb}' do
   if item.identifier =~ '/index.*'
     '/index.html'
   else
@@ -22,7 +22,7 @@ route '/**/*.{html,md}' do
   end
 end
 
-compile '/**/*' do
+compile '/static/*' do
   write item.identifier.to_s
 end
 
