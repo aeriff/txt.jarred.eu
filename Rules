@@ -1,5 +1,10 @@
 #!/usr/bin/env ruby
 
+compile %r[\/[0-9]{4}\/[0-9]{2}\/.*] do
+  filter :erb
+  layout '/article.*'
+end
+
 compile '/**/*.erb' do
   filter :erb
   layout '/default.*'
