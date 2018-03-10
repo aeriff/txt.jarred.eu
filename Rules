@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 compile %r[\/[0-9]{4}\/[0-9]{2}\/.*] do
-  filter :erb
+  filter :kramdown, input: 'GFM', syntax_highlighter_opts: {line_numbers: nil}
   layout '/article.*'
 end
 
@@ -19,16 +19,20 @@ compile '/**/*.md' do
   layout '/default.*'
 end
 
+compile '/static/*' do
+  case item[:extension]
+  when 'css'
+    filter :rainpress
+  end
+  write item.identifier.to_s
+end
+
 route '/**/*.{html,md,erb}' do
   if item.identifier =~ '/index.*'
     '/index.html'
   else
     item.identifier.without_ext + '/index.html'
   end
-end
-
-compile '/static/*' do
-  write item.identifier.to_s
 end
 
 layout '/**/*', :erb

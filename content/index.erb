@@ -3,9 +3,9 @@ title: Home
 ---
 
 <% sorted_articles.each do |post| %>
-<div>
-  <h1 class="ma0 pa0 f4 f3-m f2-l"><%= link_to(post[:title], post, {'class' => 'link black'}) %></h3></a>
-  <time class="f6 mb2 dib ttu tracked mid-gray"><small><%= post[:created_at] %></small></span>
+<div class="index-title">
+  <%= link_to(post[:title], post) %>
 </div>
-<p class="mb5 measure copy lh-copy"><%= post[:excerpt] %></p>
+<div class="index-excerpt"><time class="index-date"><%= post[:created_at] %> |</time> <%= post[:excerpt] %></div>
+<br />
 <% end %>

@@ -5,5 +5,7 @@ group :nanoc do
 end
 
 gem "adsf"
+gem "coderay"
 gem "kramdown"
 gem "nanoc"
+gem "rainpress"

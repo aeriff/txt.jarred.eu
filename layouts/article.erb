@@ -1,7 +1,6 @@
-<% render '/_base.*' do %>
-<div>
-  <h1 class="measure ma0 pa0 f4 f3-m f2-l"><%= item[:title] %></h3>
-  <time class="f6 mb2 dib ttu tracked mid-gray"><small><%= item[:created_at] %></small></span>
-</div>
+<% render '/_base.*', type: :article do %>
+<div class="post">
+  <h1><%= item[:title] %></h1>
   <%= yield %>
+</div>
 <% end %>

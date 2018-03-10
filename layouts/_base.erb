@@ -4,20 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><%= title_for(item) %></title>
-    <link rel="stylesheet" href="/static/tachyons.min.css">
+    <link rel="stylesheet" href="/static/style.css">
     <meta name="generator" content="Nanoc <%= Nanoc::VERSION %>">
   </head>
-  <body class="w-100 sans-serif bg-white">
-    <main>
-      <%= render '/header.*' %>
-      <article>
-        <div class="near-black pa4 ph7-l mw9-l center">
-          <div class="pt1 pt2-ns">
-            <%= yield %>
-          </div>
-        </div>
-      </article>
-    </main>
-    <%= render '/footer.*' %>
+  <body<% unless @type.nil? %> class="<%= @type.to_s %>"<% end %>>
+    <div class="container">
+<%= yield %>
+    </div>
+<%= render '/footer.*' %>
   </body>
 </html>
