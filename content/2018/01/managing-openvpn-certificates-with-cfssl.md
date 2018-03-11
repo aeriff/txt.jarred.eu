@@ -61,8 +61,8 @@ Now we can initialise the CA and generate certificates for the server:
 cfssl genkey -initca vpn/config/csr.json | \
   cfssljson -bare vpn/certs/ca
 
-cfssl gencert -ca vpn/certs/ca.pem \
-  -ca-key vpn/certs/ca-key.pem \
+cfssl gencert -ca=vpn/certs/ca.pem \
+  -ca-key=vpn/certs/ca-key.pem \
   -config=vpn/config/ca.json \
   -profile="server" \
   -hostname="server" \
@@ -74,8 +74,8 @@ Now we can generate certificates for the client. The process is identical to abo
 
 ```bash
 export CLIENT_NAME="client1"
-cfssl gencert -ca vpn/certs/ca.pem \
-  -ca-key vpn/certs/ca-key.pem \
+cfssl gencert -ca=vpn/certs/ca.pem \
+  -ca-key=vpn/certs/ca-key.pem \
   -config=vpn/config/ca.json \
   -profile="client" \
   -hostname="${CLIENT_NAME}" \
