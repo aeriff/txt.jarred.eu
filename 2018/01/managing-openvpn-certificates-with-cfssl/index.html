@@ -70,8 +70,8 @@ CA
   <div class="code"><pre>cfssl genkey -initca vpn/config/csr.json | \
   cfssljson -bare vpn/certs/ca
 
-cfssl gencert -ca vpn/certs/ca.pem \
-  -ca-key vpn/certs/ca-key.pem \
+cfssl gencert -ca=vpn/certs/ca.pem \
+  -ca-key=vpn/certs/ca-key.pem \
   -config=vpn/config/ca.json \
   -profile=&quot;server&quot; \
   -hostname=&quot;server&quot; \
@@ -85,8 +85,8 @@ cfssl gencert -ca vpn/certs/ca.pem \
 
 <div class="language-bash highlighter-coderay"><div class="CodeRay">
   <div class="code"><pre>export CLIENT_NAME=&quot;client1&quot;
-cfssl gencert -ca vpn/certs/ca.pem \
-  -ca-key vpn/certs/ca-key.pem \
+cfssl gencert -ca=vpn/certs/ca.pem \
+  -ca-key=vpn/certs/ca-key.pem \
   -config=vpn/config/ca.json \
   -profile=&quot;client&quot; \
   -hostname=&quot;${CLIENT_NAME}&quot; \
