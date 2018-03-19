@@ -366,3 +366,11 @@ footer a:hover {
 body.article footer {
     position: relative;
 }
+
+.footnotes {
+    border-top: 1px solid #eee;
+}
+
+.footnotes > ol li p {
+    margin: 0.375em 0 0 0;
+}
