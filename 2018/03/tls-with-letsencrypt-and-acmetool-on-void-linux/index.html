@@ -1,0 +1,108 @@
+<!DOCTYPE HTML>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TLS with LetsEncrypt and acmetool on Void Linux | txt.jarred.eu</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <meta name="generator" content="Nanoc 4.9.1">
+  </head>
+  <body class="article">
+    <div class="container">
+
+<div class="post">
+  <h1>TLS with LetsEncrypt and acmetool on Void Linux</h1>
+  <p>Continuing on the <a href="http://voidlinux.eu">Void Linux</a> theme, I recently wanted to replace a certificate from a commercial CA that fronts my personal IRC bouncer (<a href="https://wiki.znc.in/ZNC">znc</a>) with one from LetsEncrypt<sup id="fnref:fn-1"><a href="#fn:fn-1" class="footnote">1</a></sup>.</p>
+
+<p>I wanted to keep the list of dependencies contained to packages that were available in Void, so I settled on <a href="https://github.com/hlandau/acme"><code>acmetool</code></a>. Install the necessary packages<sup id="fnref:fn-2"><a href="#fn:fn-2" class="footnote">2</a></sup> and configure acmetool (I chose the “proxy” validation option, which is explained below):</p>
+
+<div class="language-bash highlighter-coderay"><div class="CodeRay">
+  <div class="code"><pre>xbps-install acmetool snooze
+acmetool quickstart
+</pre></div>
+</div>
+</div>
+
+<p>For the proxy validation method, you will need to configure your web server listening on port 80 to proxy requests to a local server on port 402 to serve the challenge file to LetsEncrypt. Using <a href="https://caddyserver.com/">Caddy</a> as my web server, it was as easy as appending the following line to my <code>Caddyfile</code>:</p>
+
+<div class="language-bash highlighter-coderay"><div class="CodeRay">
+  <div class="code"><pre>proxy /.well-known/acme-challenge/ localhost:402
+</pre></div>
+</div>
+</div>
+
+<p>Equivalent configurations for nginx and Apache are outlined in the <a href="https://hlandau.github.io/acme/userguide#web-server-configuration-challenges">acmetool user’s guide</a>. Now you can request a certificate:</p>
+
+<div class="language-bash highlighter-coderay"><div class="CodeRay">
+  <div class="code"><pre>acmetool want yourdomain.com www.yourdomain.com
+</pre></div>
+</div>
+</div>
+
+<p>If all goes well, you should now have certificates available at <code>/var/lib/acme/live/yourdomain.com</code> ready for use. These paths will remain “stable” through renewals, so you can reference them in configuration files or symlink them to other locations as required.</p>
+
+<p>Due to the certificates having a short lifetime, you will need to configure an automated way to renew them. As I am using <a href="https://github.com/chneukirchen/snooze"><code>snooze</code></a> for this purpose, I created the following runit service:</p>
+
+<div class="language-bash highlighter-coderay"><div class="CodeRay">
+  <div class="code"><pre>mkdir -p /etc/sv/acmetool /etc/sv/acmetool/supervise
+cat &gt;/etc/sv/acmetool/run &lt;&lt;EOF
+#!/bin/sh
+exec 2&gt;&amp;1
+exec snooze -D/7 acmetool --batch
+EOF
+chmod +x /etc/sv/acmetool
+ln -s /etc/sv/acmetool /var/service/acmetool
+</pre></div>
+</div>
+</div>
+
+<p>With this configuration, <code>snooze</code> will call <code>acmetool</code> every 7 days to renew any soon-to-expire certificates. By design, <code>snooze</code> will terminate once <code>acmetool</code> has finished doing it’s job. With runit supervising the process, it will ensure that <code>snooze</code> is restarted each time it ends, ready to take care of all your certificate renewal needs.</p>
+
+<p>As an aside, acmetool also has experimental support for <a href="https://hlandau.github.io/acme/userguide#annex-root-configured-non-root-operation">rootless operation</a> which I have yet to investigate. This would change the setup outlined in this post slightly<sup id="fnref:fn-3"><a href="#fn:fn-3" class="footnote">3</a></sup>, but is probably a good idea.</p>
+
+<h2 id="tying-it-all-together-with-hooks">Tying it all together with hooks</h2>
+
+<p>acmetool has <a href="https://hlandau.github.io/acme/userguide#hooks">support for hooks</a>. By default, at the time of writing the package includes a hook called <code>haproxy</code><sup id="fnref:fn-4"><a href="#fn:fn-4" class="footnote">4</a></sup>. We can use this hook to generate a certificate + private key bundle in the <a href="https://wiki.znc.in/Signed_SSL_certificate">format required by znc</a>. On Void Linux, you can achieve this with the following:</p>
+
+<div class="language-bash highlighter-coderay"><div class="CodeRay">
+  <div class="code"><pre>cat &gt;/etc/default/acme-reload &lt;&lt;EOF
+HAPROXY_DAEMONS=&quot;${HAPROXY_DAEMONS} znc&quot;
+EOF
+</pre></div>
+</div>
+</div>
+
+<p>This will only work if your binary is called <code>znc</code>. You can alternatively set the environment variable <code>HAPROXY_ALWAYS_GENERATE</code> to make acmetool create this new certificate regardless of which daemons you have installed. If you’re curious how the sausage is made, read the content of the hook script at <code>/usr/libexec/acme/hooks/haproxy</code>. There you will also learn how to have <a href="https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange">Diffie-Hellman parameters</a> appended to the bundle.</p>
+
+<p>acmetool will now ensure a certificate is created at <code>/var/lib/acme/live/yourdomain.com/haproxy</code> upon each renewal, which you can either copy to another location as a following step (hint: perhaps as an acmetool hook), or symlink it (as I did, because sometimes I’m lazy).</p>
+
+<div class="footnotes">
+  <ol>
+    <li id="fn:fn-1">
+      <p>In case you haven’t heard of <a href="https://letsencrypt.org/">LetsEncrypt</a> yet, I suggest you read up about the project and then consider <a href="https://letsencrypt.org/donate/">donating</a> or <a href="https://letsencrypt.org/getinvolved/">getting involved</a> with the project! <a href="#fnref:fn-1" class="reversefootnote">&#8617;</a></p>
+    </li>
+    <li id="fn:fn-2">
+      <p><a href="https://github.com/chneukirchen/snooze"><code>snooze</code></a> is optional if you don’t have a working cron setup (like me at the time) and aren’t tied to the idea of crontab files. It works wonderfully with runit. <a href="#fnref:fn-2" class="reversefootnote">&#8617;</a></p>
+    </li>
+    <li id="fn:fn-3">
+      <p>At least the web server configuration, as a non-root user could not bind to port 402. <a href="#fnref:fn-3" class="reversefootnote">&#8617;</a></p>
+    </li>
+    <li id="fn:fn-4">
+      <p>The documentation and inline comments mention that this is a legacy name and it may be renamed at some point. Here be dragons, etc. <a href="#fnref:fn-4" class="reversefootnote">&#8617;</a></p>
+    </li>
+  </ol>
+</div>
+
+</div>
+
+    </div>
+<footer class="footer">
+<div class="container">
+<a href="/">Home</a> /
+<a href="/about">About</a>
+</div>
+</footer>
+
+  </body>
+</html>
+
