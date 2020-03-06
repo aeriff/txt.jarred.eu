@@ -7,5 +7,6 @@ end
 gem "adsf"
 gem "coderay"
 gem "kramdown"
-gem "nanoc"
+gem "kramdown-parser-gfm"
+gem "nanoc", "~> 4.11"
 gem "rainpress"
