@@ -292,6 +292,7 @@ pre code {
     background-color: #f7f7f7;
     font-family: monospace;
     font-size: 1em;
+    padding: 0;
 }
 
 code {
