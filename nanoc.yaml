@@ -1,4 +1,4 @@
-base_url: "http://txt.jarred.eu"
+base_url: "https://txt.jarred.eu"
 enable_output_diff: true
 prune:
   auto_prune: true
