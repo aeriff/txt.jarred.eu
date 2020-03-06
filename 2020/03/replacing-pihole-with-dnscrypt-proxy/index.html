@@ -1,0 +1,166 @@
+<!DOCTYPE HTML>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Replacing Pi-hole with dnscrypt-proxy | txt.jarred.eu</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <meta name="generator" content="Nanoc 4.11.14">
+  </head>
+  <body class="article">
+    <div class="container">
+
+<div class="post">
+  <h1>Replacing Pi-hole with dnscrypt-proxy</h1>
+  <p>Like many, I run my own instance of <a href="https://pi-hole.net/">Pi-hole</a> at home to make an ever-increasing portion of the internet less annoying to use. However, I had begun to acquire a small laundry list of issues<sup id="fnref:fn-1"><a href="#fn:fn-1" class="footnote">1</a></sup>:</p>
+
+<ol>
+  <li>The main functions of the web interface are <a href="https://github.com/pi-hole/pi-hole/issues/3039">broken on PHP 7.4</a><sup id="fnref:fn-2"><a href="#fn:fn-2" class="footnote">2</a></sup>. This means I had to resort to using the <code>pihole</code> CLI tool for simple things such as enabling/disabling blocking<sup id="fnref:fn-3"><a href="#fn:fn-3" class="footnote">3</a></sup>, or go spelunking in a multitude of config files to change simple settings. At some point, this meant that my configuration files become so messed up between PHP failing to update them and editing them by hand that edits I made by hand had no effect until I deleted some of the files completely and let Pi-hole recreate them after a restart.</li>
+  <li>Pi-hole was the only reason I had PHP installed. Having to downgrade and keep PHP held at version 7.3.12 seemed counter-intuitive to the reason one uses a <a href="https://archlinuxarm.org/">rolling-release OS</a> in the first place.</li>
+  <li>Not unsurprisingly, Pi-hole does not <a href="https://docs.pi-hole.net/main/prerequesites/#supported-operating-systems">officially support Arch Linux</a>. I’m not adverse to a few rough edges and the well-maintained <abbr title="Arch User Repository">AUR</abbr> packages (<a href="https://aur.archlinux.org/packages/pi-hole-server/">pi-hole-server</a>, <a href="https://aur.archlinux.org/packages/pi-hole-ftl/">pi-hole-ftl</a>) made it relatively easy to run, but every now and then a small change would mean having a subtly broken Pi-hole instance for some hours/days, figuring the issue out myself or doing the downgrade dance.</li>
+</ol>
+
+<p>As I listlessly scrolled through my Twitter feed this morning, I came across this short thread:</p>
+
+<blockquote class="twitter-tweet" data-dnt="true" data-theme="light"><p lang="en" dir="ltr">dnsmasq is randomly segfaulting because a DNS response looks funny. This is a reminder that you should NEVER use dnsmasq.<br /><br />The only reason there isn&#39;t a pile of sev:crit CVEs is that it&#39;s impossible to fuzz because the logic, state, and I/O are mixed with the parsing. <a href="https://t.co/zPNwYx2Uuk">https://t.co/zPNwYx2Uuk</a></p>&mdash; Filippo Valsorda (@FiloSottile) <a href="https://twitter.com/FiloSottile/status/1235044425509810176?ref_src=twsrc%5Etfw">March 4, 2020</a></blockquote>
+<script async="" src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+<p>Combined with the above issues and Pi-hole being the only reason I even had PHP installed in the first place, it was more than enough incentive<sup id="fnref:fn-4"><a href="#fn:fn-4" class="footnote">4</a></sup> to replace it with <code>dnscrypt-proxy</code>. Setup was easy with a combination of the ever great <a href="https://wiki.archlinux.org/index.php/Dnscrypt-proxy">Archwiki article</a> plus the <a href="https://github.com/DNSCrypt/dnscrypt-proxy/wiki">project documentation on GitHub</a>. Within a few minutes I had a DNS server answering queries, albeit unfiltered.</p>
+
+<h2 id="managing-blacklists">Managing blacklists</h2>
+
+<p>Blacklist management in Pi-hole is automatically managed by a process called <a href="https://docs.pi-hole.net/core/pihole-command/#gravity">Gravity</a> which updates by default on a weekly basis.</p>
+
+<p>With dnscrypt-proxy, a little more setup is required, but with systemd (or your time-based task scheduler of choice) it’s just as simple to achieve the same. The project’s GitHub repo includes a handy Python script: <a href="https://github.com/DNSCrypt/dnscrypt-proxy/tree/master/utils/generate-domains-blacklists"><code>generate-domains-blacklist</code></a><sup id="fnref:fn-5"><a href="#fn:fn-5" class="footnote">5</a></sup>. This is the script we will use to perform updates.</p>
+
+<p>Before we begin, there are some minor caveats to note: most paths below are specific to those provided by the Arch Linux package. Some things you may need to modify include:</p>
+<ul>
+  <li>creating a configuration file. The <a href="https://raw.githubusercontent.com/DNSCrypt/dnscrypt-proxy/master/utils/generate-domains-blacklists/domains-blacklist.conf">default provided</a> is a great starting point.</li>
+  <li>the <code>GENERATOR</code> variable in the wrapper script.</li>
+  <li>the <code>WorkingDirectory</code> in the systemd unit. Ideally your configuration files for <code>generate-domains-blacklist</code> should be in this directory so they are found without needing to specify absolute paths.</li>
+</ul>
+
+<p>We’ll need three things: a small wrapper script around <code>generate-domains-blacklist</code>, a systemd service to actually run the updates and a timer to trigger it on a schedule.</p>
+
+<pre><code class="language-bash">cat &gt;/usr/local/sbin/dnscrypt-proxy-blacklist-up &lt;&lt;EOF
+#!/bin/bash
+#
+# Perform updates of dnscrypt-proxy blacklist files.
+
+set -o pipefail
+
+GENERATOR="/usr/bin/generate-domains-blacklist"
+BLACKLIST_FILE="$1"
+
+function err() {
+  echo "error: $*" &gt;&amp;2
+  exit 1
+}
+
+if [[ -z "${BLACKLIST_FILE}" ]]; then
+  err "please specify a blacklist file, eg: $0 /etc/dnscrypt-proxy/blacklist.txt"
+fi
+
+if [[ ! -x "${GENERATOR}" ]]; then
+  err "${GENERATOR} does not exist, or is not executable"
+fi
+
+BLACKLIST_TMP="$(mktemp)"
+trap 'rm -rf "${BLACKLIST_TMP}"' EXIT
+
+echo "updating blacklist"
+
+if ! "${GENERATOR}" 2&gt;/dev/null &gt; "${BLACKLIST_TMP}"; then
+  err "failed to generate blacklist"
+fi
+
+if ! mv "${BLACKLIST_TMP}" "${BLACKLIST_FILE}"; then
+  err "failed to store new blacklist file"
+fi
+
+if ! chmod 0644 "${BLACKLIST_FILE}" ; then
+  err "failed to set permissions on blacklist file"
+fi
+
+echo "successfully updated blacklist file"
+exit 0
+EOF
+</code></pre>
+
+<pre><code class="language-bash">cat &gt;/etc/systemd/system/dnscrypt-proxy-blacklist-up.service &lt;&lt;EOF
+[Unit]
+Description=dnscrypt-proxy blacklist updater
+
+[Service]
+Type=oneshot
+WorkingDirectory=/usr/share/dnscrypt-proxy/utils/generate-domains-blacklists
+ExecStart=/usr/local/sbin/dnscrypt-proxy-blacklist-up /etc/dnscrypt-proxy/blacklist.txt
+ExecStartPost=/usr/bin/systemctl restart dnscrypt-proxy
+EOF
+</code></pre>
+
+<p>Once that’s all in place, run the service once to ensure it works before creating the timer:</p>
+
+<pre><code class="language-bash">$ sudo systemctl daemon-reload
+$ sudo systemctl start dnscrypt-proxy-blacklist-up
+</code></pre>
+
+<p>If everything works as expected, create the timer and check it’s enabled correctly:</p>
+
+<pre><code class="language-bash">cat &gt;/etc/systemd/system/dnscrypt-proxy-blacklist-up.timer &lt;&lt;EOF
+[Unit]
+Description=Weekly dnscrypt-proxy blacklist update
+
+[Timer]
+OnCalendar=weekly
+AccuracySec=3h
+Persistent=true
+EOF
+</code></pre>
+
+<pre><code class="language-bash">$ sudo systemctl daemon-reload
+$ systemctl list-timers dnscrypt-proxy-blacklist-up
+
+NEXT                         LEFT        LAST PASSED UNIT                              ACTIVATES
+Mon 2020-03-09 00:00:00 PDT  2 days left n/a  n/a    dnscrypt-proxy-blacklist-up.timer dnscrypt-proxy-blacklist-up.service
+</code></pre>
+
+<h2 id="wrapping-up">Wrapping up</h2>
+
+<p>At this point, I now have an equivalent setup to Pi-hole with fewer moving parts. So far everything seems to be working great with mostly the default configuration plus a handful of additional filters. Setting up <a href="https://github.com/DNSCrypt/dnscrypt-proxy/wiki/Forwarding">forwarding</a> for some locally-hosted zones I already had backed by CoreDNS was a breeze too. In the past I had Pi-hole forwarding all queries to CoreDNS which would then forward to a set of resolvers using DNS over TLS, but I’ve decided to give the native DNS over HTTPS support in dnscrypt-proxy a try instead.</p>
+
+<p>Also, I can’t lie that uninstalling PHP and it’s band of extensions was a great feeling. 👋</p>
+
+<div class="footnotes">
+  <ol>
+    <li id="fn:fn-1">
+      <p>All more or less self-inflicted, but I digress. <a href="#fnref:fn-1" class="reversefootnote">&#8617;</a></p>
+    </li>
+    <li id="fn:fn-2">
+      <p>Don’t even get me started on how the PHP scripts are mostly lazy wrappers around <code>system()</code> calls to the CLI tool. <a href="#fnref:fn-2" class="reversefootnote">&#8617;</a></p>
+    </li>
+    <li id="fn:fn-3">
+      <p>I had to do this a surprising amount. It seems there is not an easy way to block the ridiculous ads on my “smart” TV without having the Netflix app often fail to login when starting up. <a href="#fnref:fn-3" class="reversefootnote">&#8617;</a></p>
+    </li>
+    <li id="fn:fn-4">
+      <p>The fact it’s written in Go and is well-packaged for Arch Linux is the icing on the cake. <a href="#fnref:fn-4" class="reversefootnote">&#8617;</a></p>
+    </li>
+    <li id="fn:fn-5">
+      <p>It just so happens to also be included in the Arch Linux package, complete with a handy symlink into <code>/usr/bin</code>. Wonderful. <a href="#fnref:fn-5" class="reversefootnote">&#8617;</a></p>
+    </li>
+  </ol>
+</div>
+
+</div>
+
+    </div>
+<footer class="footer">
+<div class="container">
+<a href="/">Home</a> /
+<a href="/about">About</a>
+</div>
+</footer>
+
+  </body>
+</html>
+

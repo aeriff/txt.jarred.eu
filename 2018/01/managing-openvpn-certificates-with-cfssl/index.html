@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Managing OpenVPN certificates with cfssl | txt.jarred.eu</title>
     <link rel="stylesheet" href="/static/style.css">
-    <meta name="generator" content="Nanoc 4.9.1">
+    <meta name="generator" content="Nanoc 4.11.14">
   </head>
   <body class="article">
     <div class="container">
@@ -18,83 +18,74 @@
 
 <p>As cfssl expects JSON files for configuration, we’ll take care of that first (modify as needed, eg. common names and country/organisation values):</p>
 
-<div class="language-bash highlighter-coderay"><div class="CodeRay">
-  <div class="code"><pre>mkdir -p vpn/{config,certs}
+<pre><code class="language-bash">mkdir -p vpn/{config,certs}
 cat &gt;vpn/config/csr.json &lt;&lt;CSR
 {
-    &quot;cn&quot;: &quot;My VPN CA&quot;,
-    &quot;key&quot;: {
-        &quot;algo&quot;: &quot;rsa&quot;,
-        &quot;size&quot;: 2048
+    "cn": "My VPN CA",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
     },
-    &quot;names&quot;: [
+    "names": [
         {
-            &quot;C&quot;: &quot;DE&quot;,
-            &quot;O&quot;: &quot;OpenVPN&quot;
+            "C": "DE",
+            "O": "OpenVPN"
         }
     ]
 }
 CSR
 cat &gt;vpn/config/ca.json &lt;&lt;CA
 {
-    &quot;signing&quot;: {
-        &quot;profiles&quot;: {
-            &quot;server&quot;: {
-                &quot;expiry&quot;: &quot;43800h&quot;,
-                &quot;usages&quot;: [
-                    &quot;digital signature&quot;,
-                    &quot;key encipherment&quot;,
-                    &quot;server auth&quot;
+    "signing": {
+        "profiles": {
+            "server": {
+                "expiry": "43800h",
+                "usages": [
+                    "digital signature",
+                    "key encipherment",
+                    "server auth"
                 ]
             },
-            &quot;client&quot;: {
-                &quot;expiry&quot;: &quot;43800h&quot;,
-                &quot;usages&quot;: [
-                    &quot;signing&quot;,
-                    &quot;client auth&quot;
+            "client": {
+                "expiry": "43800h",
+                "usages": [
+                    "signing",
+                    "client auth"
                 ]
             }
         }
     }
 }
 CA
-</pre></div>
-</div>
-</div>
+</code></pre>
 
 <p>You’ll notice we’re using TLS key usage extensions as outlined in <a href="https://www.ietf.org/rfc/rfc3280.txt">RFC3280</a> to take advantage of things like the OpenVPN client directive <code>remote-cert-tls server</code>.</p>
 
 <p>Now we can initialise the CA and generate certificates for the server:</p>
 
-<div class="language-bash highlighter-coderay"><div class="CodeRay">
-  <div class="code"><pre>cfssl genkey -initca vpn/config/csr.json | \
+<pre><code class="language-bash">cfssl genkey -initca vpn/config/csr.json | \
   cfssljson -bare vpn/certs/ca
 
 cfssl gencert -ca=vpn/certs/ca.pem \
   -ca-key=vpn/certs/ca-key.pem \
   -config=vpn/config/ca.json \
-  -profile=&quot;server&quot; \
-  -hostname=&quot;server&quot; \
+  -profile="server" \
+  -hostname="server" \
   vpn/config/csr.json | \
     cfssljson -bare vpn/certs/server
-</pre></div>
-</div>
-</div>
+</code></pre>
 
 <p>Now we can generate certificates for the client. The process is identical to above for the server certificate, only substituting in “client” where appropriate to use the different signing profile. Modify the value of <code>CLIENT_NAME</code> as necessary.</p>
 
-<div class="language-bash highlighter-coderay"><div class="CodeRay">
-  <div class="code"><pre>export CLIENT_NAME=&quot;client1&quot;
+<pre><code class="language-bash">export CLIENT_NAME="client1"
 cfssl gencert -ca=vpn/certs/ca.pem \
   -ca-key=vpn/certs/ca-key.pem \
   -config=vpn/config/ca.json \
-  -profile=&quot;client&quot; \
-  -hostname=&quot;${CLIENT_NAME}&quot; \
+  -profile="client" \
+  -hostname="${CLIENT_NAME}" \
   vpn/config/csr.json | \
-    cfssljson -bare &quot;vpn/certs/${CLIENT_NAME}&quot;
-</pre></div>
-</div>
-</div>
+    cfssljson -bare "vpn/certs/${CLIENT_NAME}"
+</code></pre>
 
 <p>You should now have the following files for copying to the server: <code>ca.pem</code>, <code>server.pem</code> and <code>server-key.pem</code>; and <code>ca.pem</code>, <code>client1.pem</code> and <code>client1-key.pem</code> for copying to the client.</p>
 
